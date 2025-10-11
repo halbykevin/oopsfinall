@@ -15,9 +15,14 @@ $stmt->close();
 
 if (!$cat) { header("Location: index.php#menu"); exit(); }
 
-// Subcategories
+// Subcategories (ordered within this category)
 $subs = [];
-$q = $conn->prepare("SELECT id, name FROM subcategory WHERE category_id=? ORDER BY name ASC");
+$q = $conn->prepare("
+  SELECT id, name
+  FROM subcategory
+  WHERE category_id = ?
+  ORDER BY sort_order ASC, id ASC
+");
 $q->bind_param("i", $cat['id']);
 $q->execute();
 $r = $q->get_result();
@@ -25,20 +30,28 @@ while ($row = $r->fetch_assoc()) $subs[] = $row;
 $q->close();
 
 // Items (defensive de-dup)
+// Items: ordered by the subcategory's order, then item name
 $items = [];
 $iq = $conn->prepare("
-  SELECT MIN(i.id) AS id, i.name, i.description, i.price, i.subcategory_id
+  SELECT
+    MIN(i.id) AS id,
+    i.name,
+    i.description,
+    i.price,
+    i.subcategory_id,
+    COALESCE(s.sort_order, 0) AS s_order
   FROM item i
   JOIN subcategory s ON s.id = i.subcategory_id
   WHERE s.category_id = ?
-  GROUP BY i.name, i.description, i.price, i.subcategory_id
-  ORDER BY i.name ASC
+  GROUP BY i.name, i.description, i.price, i.subcategory_id, s.sort_order
+  ORDER BY s_order ASC, i.name ASC
 ");
 $iq->bind_param("i", $cat['id']);
 $iq->execute();
 $ri = $iq->get_result();
 while ($row = $ri->fetch_assoc()) $items[] = $row;
 $iq->close();
+
 
 // Title: ensure it reads "... MENU"
 $title = strtoupper(trim($cat['name']));
