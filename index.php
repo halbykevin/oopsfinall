@@ -51,7 +51,7 @@
   body {
     font-family: "Montserrat-Light", sans-serif;
     color: var(--text);
-    background: url("images/background/backgroundtest1.png") top center no-repeat;
+    background: url("images/background/landing-background.png") top center no-repeat;
     background-size: 100% 200vh;   /* 👈 stretch image to cover both sections */
     background-attachment: scroll;
     overflow-x: hidden;
