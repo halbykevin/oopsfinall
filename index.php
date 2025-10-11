@@ -1,15 +1,35 @@
-  <?php
-  // index.php
-  include 'db.php';
+<?php
+include 'db.php'; // ✅ This connects to your database
 
-  // Load categories from DB
-  $cats = [];
-  $res = $conn->query("SELECT id, name FROM category ORDER BY id ASC");
-  while ($r = $res->fetch_assoc()) {
-    $cats[] = $r;
+// helper to build a URL-safe slug
+function make_slug($s) {
+  $s = iconv('UTF-8','ASCII//TRANSLIT',$s);
+  $s = strtolower(trim($s));
+  $s = preg_replace('/[^a-z0-9]+/','-',$s);
+  return trim($s, '-');
+}
+
+// Load categories ordered by sort_order then id, ensure slug exists
+$cats = [];
+$sql  = "SELECT id, name, COALESCE(slug, '') AS slug, COALESCE(sort_order, 0) AS sort_order
+         FROM category
+         ORDER BY sort_order ASC, id ASC";
+$res = $conn->query($sql);
+
+while ($row = $res->fetch_assoc()) {
+  if ($row['slug'] === '') {
+    $slug = make_slug($row['name']);
+    // persist slug so future loads don’t recompute
+    $upd = $conn->prepare("UPDATE category SET slug=? WHERE id=?");
+    $upd->bind_param("si", $slug, $row['id']);
+    $upd->execute();
+    $upd->close();
+    $row['slug'] = $slug;
   }
-  $res && $res->close();
-  ?>
+  $cats[] = $row;
+}
+$res && $res->close();
+?>
   <!DOCTYPE html>
   <html lang="en">
   <head>
@@ -51,7 +71,7 @@
   body {
     font-family: "Montserrat-Light", sans-serif;
     color: var(--text);
-    background: url("images/background/backgroundtest1.png") top center no-repeat;
+    background: url("images/background/landing-background.png") top center no-repeat;
     background-size: 100% 200vh;   /* 👈 stretch image to cover both sections */
     background-attachment: scroll;
     overflow-x: hidden;
@@ -123,21 +143,23 @@
   </head>
   <body>
 
-    <!-- Top section (MENU text) -->
-    <section class="section" id="top">
-      <a href="#menu" class="menu-link">MENU</a>
-    </section>
+  <!-- Top section -->
+  <section class="section" id="top">
+    <a href="#menu" class="menu-link">MENU</a>
+  </section>
 
-    <!-- Bottom section (Category links) -->
-    <section class="section" id="menu">
-      <div class="list">
-        <?php foreach ($cats as $c): ?>
-          <a class="cat-link" href="menu.php?category_id=<?= (int)$c['id'] ?>">
-            <?= htmlspecialchars($c['name']) ?>
-          </a>
-        <?php endforeach; ?>
-      </div>
-    </section>
+  <!-- Bottom section: categories -->
+  <section class="section" id="menu">
+    <div class="list">
+      <?php foreach ($cats as $c): ?>
+        <a class="cat-link"
+           href="menu.php?category=<?= urlencode($c['slug']) ?>"
+           data-id="<?= (int)$c['id'] ?>">
+          <?= htmlspecialchars($c['name']) ?>
+        </a>
+      <?php endforeach; ?>
+    </div>
+  </section>
 
-  </body>
+</body>
   </html>

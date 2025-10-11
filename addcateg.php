@@ -9,14 +9,19 @@ include 'db.php';
 $flash = '';
 $flash_type = '';
 
-// ADD CATEGORY
+// ADD CATEGORY (auto-append to end)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create') {
   $name = trim($_POST['name'] ?? '');
   if ($name !== '') {
-    $stmt = $conn->prepare("INSERT INTO category (name) VALUES (?)");
-    $stmt->bind_param("s", $name);
+    $rs = $conn->query("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM category");
+    $next = ($rs && $rs->num_rows) ? (int)$rs->fetch_assoc()['next_order'] : 1;
+    $rs && $rs->close();
+
+    $stmt = $conn->prepare("INSERT INTO category (name, sort_order) VALUES (?, ?)");
+    $stmt->bind_param("si", $name, $next);
     $stmt->execute();
     $stmt->close();
+
     $flash = 'Category added successfully.';
     $flash_type = 'success';
   } else {
@@ -25,17 +30,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
   }
 }
 
-// UPDATE CATEGORY
+// UPDATE CATEGORY (name + order)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update') {
-  $id = intval($_POST['id'] ?? 0);
+  $id   = intval($_POST['id'] ?? 0);
   $name = trim($_POST['name'] ?? '');
+  $ord  = intval($_POST['sort_order'] ?? 0);
   if ($id > 0 && $name !== '') {
-    $stmt = $conn->prepare("UPDATE category SET name=? WHERE id=?");
-    $stmt->bind_param("si", $name, $id);
+    $stmt = $conn->prepare("UPDATE category SET name=?, sort_order=? WHERE id=?");
+    $stmt->bind_param("sii", $name, $ord, $id);
     $stmt->execute();
     $stmt->close();
     $flash = 'Category updated.';
     $flash_type = 'success';
+  }
+}
+
+// MOVE (swap sort_order with neighbor)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'move') {
+  $id  = intval($_POST['id'] ?? 0);
+  $dir = ($_POST['dir'] ?? '') === 'up' ? 'up' : 'down';
+  if ($id > 0) {
+    // current order
+    $stmt = $conn->prepare("SELECT sort_order FROM category WHERE id=?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $stmt->bind_result($cur);
+    $ok = $stmt->fetch();
+    $stmt->close();
+
+    if ($ok) {
+      if ($dir === 'up') {
+        $stmt = $conn->prepare("SELECT id, sort_order FROM category WHERE sort_order < ? ORDER BY sort_order DESC, id DESC LIMIT 1");
+      } else {
+        $stmt = $conn->prepare("SELECT id, sort_order FROM category WHERE sort_order > ? ORDER BY sort_order ASC, id ASC LIMIT 1");
+      }
+      $stmt->bind_param("i", $cur);
+      $stmt->execute();
+      $stmt->bind_result($nid, $nord);
+      $hasNeighbor = $stmt->fetch();
+      $stmt->close();
+
+      if ($hasNeighbor) {
+        // swap safely
+        $conn->begin_transaction();
+        $tmp = -1;
+
+        $u1 = $conn->prepare("UPDATE category SET sort_order=? WHERE id=?");
+        $u1->bind_param("ii", $tmp, $id);
+        $u1->execute();
+        $u1->close();
+
+        $u2 = $conn->prepare("UPDATE category SET sort_order=? WHERE id=?");
+        $u2->bind_param("ii", $cur, $nid);
+        $u2->execute();
+        $u2->close();
+
+        $u3 = $conn->prepare("UPDATE category SET sort_order=? WHERE id=?");
+        $u3->bind_param("ii", $nord, $id);
+        $u3->execute();
+        $u3->close();
+
+        $conn->commit();
+      }
+    }
   }
 }
 
@@ -52,10 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
   }
 }
 
-// FETCH ALL
+// FETCH ALL (ordered)
 $rows = [];
-$res = $conn->query("SELECT id, name FROM category ORDER BY id DESC");
+$res = $conn->query("SELECT id, name, sort_order FROM category ORDER BY sort_order ASC, id ASC");
 while ($r = $res->fetch_assoc()) $rows[] = $r;
+$res && $res->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -80,7 +138,7 @@ while ($r = $res->fetch_assoc()) $rows[] = $r;
   .card {
     background:var(--card); border:1px solid var(--border);
     border-radius:var(--radius); padding:25px 30px;
-    box-shadow:var(--shadow); width:min(90vw,700px);
+    box-shadow:var(--shadow); width:min(90vw,760px);
   }
   h1 { text-align:center; margin:6px 0 10px; }
   .back {
@@ -89,106 +147,39 @@ while ($r = $res->fetch_assoc()) $rows[] = $r;
   }
   .toolbar{ display:flex; justify-content:space-between; align-items:center; }
 
-  .flash {
-    padding:10px; border-radius:10px; text-align:center; margin:15px 0;
-    font-weight:500;
-  }
+  .flash { padding:10px; border-radius:10px; text-align:center; margin:15px 0; font-weight:500; }
   .flash.success { background:#16a34a; }
   .flash.error { background:#d93025; }
 
-  form.add-form {
-    display:flex; gap:10px; margin-bottom:22px; flex-wrap:wrap;
-  }
+  form.add-form { display:flex; gap:10px; margin-bottom:22px; flex-wrap:wrap; }
   .add-form input[type="text"]{
     flex:1; padding:12px; border-radius:10px; border:1px solid #444;
     background:#1e2229; color:#fff; outline:none;
   }
-  .btn {
-    border:none; border-radius:999px; padding:12px 20px;
-    font-weight:600; cursor:pointer; transition:.2s;
-    color:#fff;
-  }
-  .btn.primary { background:var(--primary); }
-  .btn.primary:hover { background:var(--primary-hover); }
-  .btn.danger { background:var(--danger); }
-  .btn.secondary { background:#6b7280; }
+  .btn { border:none; border-radius:999px; padding:12px 20px; font-weight:600; cursor:pointer; transition:.2s; color:#fff; }
+  .btn.primary{ background:var(--primary); }
+  .btn.primary:hover{ background:var(--primary-hover); }
+  .btn.danger{ background:var(--danger); }
+  .btn.secondary{ background:#6b7280; }
 
-  /* TABLE / LIST */
-  .table{
-    width:100%;
-    border-collapse:collapse;
-    margin-top:6px;
-    table-layout: fixed;           /* ensures stable cell widths */
-  }
-  .table th, .table td{
-    border-bottom:1px solid #333;
-    padding:12px 8px;
-    text-align:left;
-    vertical-align: middle;
-  }
+  .table{ width:100%; border-collapse:collapse; margin-top:6px; table-layout:fixed; }
+  .table th, .table td{ border-bottom:1px solid #333; padding:12px 8px; text-align:left; vertical-align:middle; }
   .table th{ color:var(--muted); font-weight:600; font-size:14px; }
 
-  .row-form{
-    display:flex; gap:8px; align-items:center; width:100%;
-  }
-  .row-input{
-    flex:1 1 auto;
-    min-width:0;                   /* allow shrink without overflow */
-    padding:10px;
-    border:1px solid #444;
-    border-radius:10px;
-    background:#1e2229;
-    color:#fff;                    /* white text as requested */
-    outline:none;
-  }
+  .row-form{ display:flex; gap:8px; align-items:center; width:100%; }
+  .row-input{ flex:1 1 auto; min-width:0; padding:10px; border:1px solid #444; border-radius:10px; background:#1e2229; color:#fff; outline:none; }
+  .order-input{ width:80px; padding:10px; text-align:center; border:1px solid #444; border-radius:10px; background:#1e2229; color:#fff; }
   .row-actions{ display:flex; gap:8px; flex-wrap:wrap; }
 
-  /* Mobile: turn rows into cards */
-  @media (max-width: 640px){
+  @media (max-width:640px){
     .card{ padding:22px; }
-    .table{ border:0; }
     .table thead{ display:none; }
-
-    .table tbody tr{
-      display:block;
-      background:#1a1d23;
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:12px;
-      margin-bottom:12px;
-    }
-    .table td{
-      display:block;
-      border:0;
-      padding:8px 0;
-    }
-    .table td[data-label]::before{
-      content: attr(data-label);
-      display:block;
-      color: var(--muted);
-      font-size:12px;
-      margin-bottom:6px;
-    }
-
-    /* Input + Save grid on mobile */
-    .row-form{
-      display:grid;
-      grid-template-columns: 1fr auto;
-      gap:10px;
-    }
-
-    /* Make Delete fill width nicely */
-    .row-actions{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:10px;
-    }
+    .table tbody tr{ display:block; background:#1a1d23; border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px; }
+    .table td{ display:block; border:0; padding:8px 0; }
+    .table td[data-label]::before{ content: attr(data-label); display:block; color: var(--muted); font-size:12px; margin-bottom:6px; }
+    .row-form{ display:grid; grid-template-columns: 1fr 90px auto; gap:10px; }
+    .row-actions{ display:grid; grid-template-columns: 1fr; gap:10px; }
     .row-actions .btn{ width:100%; }
-  }
-
-  /* Extra small phones */
-  @media (max-width: 380px){
-    .btn{ padding:11px 16px; }
   }
 </style>
 </head>
@@ -211,10 +202,15 @@ while ($r = $res->fetch_assoc()) $rows[] = $r;
       <button class="btn primary" type="submit">Add</button>
     </form>
 
-    <!-- List / Edit / Delete -->
+    <!-- List / Edit / Delete / Move -->
     <table class="table" id="catTable">
       <thead>
-        <tr><th style="width:80px;">ID</th><th>Name</th><th style="width:220px;">Actions</th></tr>
+        <tr>
+          <th style="width:80px;">ID</th>
+          <th>Name</th>
+          <th style="width:110px;">Order</th>
+          <th style="width:260px;">Actions</th>
+        </tr>
       </thead>
       <tbody>
         <?php foreach($rows as $r): ?>
@@ -226,12 +222,39 @@ while ($r = $res->fetch_assoc()) $rows[] = $r;
                 <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
                 <input type="hidden" name="action" value="update">
                 <input class="row-input" type="text" name="name" value="<?= htmlspecialchars($r['name']) ?>" required>
+
+                <!-- Order input -->
+                <input class="order-input" type="number" name="sort_order"
+                       value="<?= (int)$r['sort_order'] ?>" min="0" step="1"
+                       title="Lower appears first">
+
                 <button class="btn primary" type="submit">Save</button>
               </form>
             </td>
 
+            <td data-label="Order" class="hide-on-desktop">
+              <?= (int)$r['sort_order'] ?>
+            </td>
+
             <td data-label="Actions">
               <div class="row-actions">
+                <!-- Move Up -->
+                <form method="post">
+                  <input type="hidden" name="action" value="move">
+                  <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                  <input type="hidden" name="dir" value="up">
+                  <button class="btn secondary" type="submit" title="Move up">▲</button>
+                </form>
+
+                <!-- Move Down -->
+                <form method="post">
+                  <input type="hidden" name="action" value="move">
+                  <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                  <input type="hidden" name="dir" value="down">
+                  <button class="btn secondary" type="submit" title="Move down">▼</button>
+                </form>
+
+                <!-- Delete -->
                 <form method="post" onsubmit="return confirm('Delete this category?');">
                   <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
                   <input type="hidden" name="action" value="delete">
