@@ -31,26 +31,30 @@ $q->close();
 
 // Items (defensive de-dup)
 // Items: ordered by the subcategory's order, then item name
+// Items: ordered by category's subcategory order, then item order
 $items = [];
 $iq = $conn->prepare("
   SELECT
-    MIN(i.id) AS id,
+    i.id,
     i.name,
     i.description,
     i.price,
     i.subcategory_id,
-    COALESCE(s.sort_order, 0) AS s_order
+    COALESCE(s.sort_order, 0) AS s_order,
+    COALESCE(i.sort_order, 0) AS i_order
   FROM item i
   JOIN subcategory s ON s.id = i.subcategory_id
   WHERE s.category_id = ?
-  GROUP BY i.name, i.description, i.price, i.subcategory_id, s.sort_order
-  ORDER BY s_order ASC, i.name ASC
+  ORDER BY
+    s_order ASC, s.id ASC,
+    i_order ASC, i.id ASC
 ");
 $iq->bind_param("i", $cat['id']);
 $iq->execute();
 $ri = $iq->get_result();
 while ($row = $ri->fetch_assoc()) $items[] = $row;
 $iq->close();
+
 
 
 // Title: ensure it reads "... MENU"
