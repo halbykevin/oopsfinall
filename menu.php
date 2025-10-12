@@ -60,8 +60,11 @@ while ($row = $ri->fetch_assoc()) $items[] = $row;
 $iq->close();
 
 // Title: ensure it reads "... MENU"
-$title = strtoupper(trim($cat['name']));
-if (stripos($title, 'MENU') === false) { $title .= ' MENU'; }
+if (strtolower($cat['slug']) === 'food') {
+  $title = strtoupper(trim($cat['name']) . ' MENU');
+} else {
+  $title = strtoupper(trim($cat['name']));
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -128,7 +131,7 @@ h1{
 .tab.active{ font-family:"Montserrat-SemiBold", sans-serif; }
 .tab.active::after{
   content:""; position:absolute; left:0; right:0; bottom:0;
-  height: 2px;
+  height: 1.5px;              /* thinner line */
   background: var(--underline);
   border-radius: 999px;
 }
@@ -148,15 +151,15 @@ h1{
 .item-name{
   font-family:"Montserrat-SemiBold", sans-serif;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: 12px;
   line-height:1.15;
-  color: var(--text);
+  color: var(--text);                /* ensure name uses #9E3722 */
 }
 
 .item-price{
   font-family:"Montserrat-Regular", sans-serif;
-  color: var(--accent);
-  font-size: 11px;
+  color: var(--accent);              /* #9E3722 */
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -164,10 +167,10 @@ h1{
 .item-desc{
   grid-column: 1 / -1;
   font-family:"Montserrat-LightItalic", sans-serif;
-  font-size: 8px;
-  color: rgba(0,0,0,.55);
-  max-width: 55ch;
-  overflow-wrap: anywhere;
+  font-size: 10px;
+  color: #53504F;            /* keep softer than main text */
+  max-width: 35ch;                   /* limit horizontal width */
+  overflow-wrap: anywhere;           /* wrap long words if needed */
   line-height: 1.25;
 }
 
@@ -176,10 +179,14 @@ h1{
 .menu-btn{ width: 28px; height: 18px; position:relative; cursor:pointer; }
 .menu-btn span{
   position:absolute; left:0; right:0;
-  height: 2px;
+  height: 1.5px;               /* keep this thinness */
   background: var(--accent);
   border-radius: 999px;
+  transform: scaleY(0.75);     /* apply to ALL 3 lines equally */
+  transform-origin: center;    /* ensures even scaling */
 }
+
+
 .menu-btn span:nth-child(1){ top:0; }
 .menu-btn span:nth-child(2){ top:8px; }
 .menu-btn span:nth-child(3){ bottom:0; }
@@ -187,6 +194,12 @@ h1{
 @media (min-width: 900px){
   .container{ padding: 36px 24px 56px; }
 }
+
+.menu-btn{
+  width: 28px; height: 18px; position:relative; cursor:pointer;
+  transform: translateY(-6px);   /* <-- lift it slightly */
+}
+
 
 /* ===== Category Overlay: slide-in from right ===== */
 #cat-overlay{
@@ -225,7 +238,7 @@ h1{
 .cat-link{
   font-family: "Montserrat-Bold", sans-serif;
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: .06em; 
   color: #fff;
   text-decoration: none;
   font-size: clamp(22px, 3.4vw, 40px);
