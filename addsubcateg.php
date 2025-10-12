@@ -10,80 +10,197 @@ include 'db.php';
 $flash = '';
 $flash_type = '';
 
-// load categories (keep admin-visible order)
+// --- Helpers ---
+function normalize_subcat_order(mysqli $conn, int $category_id): void {
+  // Lock rows of this category to avoid races during renumbering (requires InnoDB)
+  $sel = $conn->prepare("
+    SELECT id
+    FROM subcategory
+    WHERE category_id = ?
+    ORDER BY COALESCE(sort_order,0) ASC, id ASC
+    FOR UPDATE
+  ");
+  $sel->bind_param("i", $category_id);
+  $sel->execute();
+  $res = $sel->get_result();
+
+  $i = 1;
+  while ($row = $res->fetch_assoc()) {
+    $upd = $conn->prepare("UPDATE subcategory SET sort_order=? WHERE id=?");
+    $upd->bind_param("ii", $i, $row['id']);
+    $upd->execute();
+    $upd->close();
+    $i++;
+  }
+  $sel->close();
+}
+
+// Load categories (keep admin-visible order)
 $cats = [];
-$rc = $conn->query("select id, name, coalesce(sort_order,0) as sort_order from category order by sort_order asc, id asc");
+$rc = $conn->query("SELECT id, name, COALESCE(sort_order,0) AS sort_order FROM category ORDER BY sort_order ASC, id ASC");
 while ($c = $rc->fetch_assoc()) { $cats[] = $c; }
 $rc && $rc->close();
 
-// CREATE (auto-append at end within the chosen category)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create') {
-  $name = trim($_POST['name'] ?? '');
-  $category_id = intval($_POST['category_id'] ?? 0);
+// --- Actions ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $action = $_POST['action'] ?? '';
 
-  if ($name === '' || $category_id <= 0) {
-    $flash = 'please provide a name and select a category.';
-    $flash_type = 'error';
-  } else {
-    // next order inside this parent category
-    $stmt = $conn->prepare("select coalesce(max(sort_order),0)+1 as next_order from subcategory where category_id=?");
-    $stmt->bind_param("i", $category_id);
-    $stmt->execute();
-    $next = ($stmt->get_result()->fetch_assoc()['next_order']) ?? 1;
-    $stmt->close();
+  // CREATE
+  if ($action === 'create') {
+    $name = trim($_POST['name'] ?? '');
+    $category_id = intval($_POST['category_id'] ?? 0);
 
-    $ins = $conn->prepare("insert into subcategory (category_id, name, sort_order) values (?, ?, ?)");
-    $ins->bind_param("isi", $category_id, $name, $next);
-    $ins->execute();
-    $ins->close();
+    if ($name === '' || $category_id <= 0) {
+      $flash = 'please provide a name and select a category.';
+      $flash_type = 'error';
+    } else {
+      // Next order at end
+      $stmt = $conn->prepare("SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM subcategory WHERE category_id=?");
+      $stmt->bind_param("i", $category_id);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      $next = ($res && $res->num_rows) ? (int)$res->fetch_assoc()['next_order'] : 1;
+      $stmt->close();
 
-    $flash = 'subcategory added successfully.';
-    $flash_type = 'success';
+      $ins = $conn->prepare("INSERT INTO subcategory (category_id, name, sort_order) VALUES (?, ?, ?)");
+      $ins->bind_param("isi", $category_id, $name, $next);
+      $ins->execute();
+      $ins->close();
+
+      // Normalize to ensure clean 1..N unique order
+      normalize_subcat_order($conn, $category_id);
+
+      $flash = 'subcategory added successfully.';
+      $flash_type = 'success';
+    }
+  }
+
+  // UPDATE (name + parent; optional sort_order kept for compatibility but not exposed)
+  if ($action === 'update') {
+    $id = intval($_POST['id'] ?? 0);
+    $name = trim($_POST['name'] ?? '');
+    $category_id = intval($_POST['category_id'] ?? 0);
+    $sort_order = isset($_POST['sort_order']) ? intval($_POST['sort_order']) : null;
+
+    if ($id > 0 && $name !== '' && $category_id > 0) {
+      if ($sort_order === null) {
+        $up = $conn->prepare("UPDATE subcategory SET category_id=?, name=? WHERE id=?");
+        $up->bind_param("isi", $category_id, $name, $id);
+      } else {
+        $up = $conn->prepare("UPDATE subcategory SET category_id=?, name=?, sort_order=? WHERE id=?");
+        $up->bind_param("isii", $category_id, $name, $sort_order, $id);
+      }
+      $up->execute();
+      $up->close();
+
+      // Keep order consistent in the new parent category
+      normalize_subcat_order($conn, $category_id);
+
+      $flash = 'subcategory updated.';
+      $flash_type = 'success';
+    } else {
+      $flash = 'invalid data for update.';
+      $flash_type = 'error';
+    }
+  }
+
+  // MOVE (up/down within same parent) using normalized contiguous order
+  if ($action === 'move_up' || $action === 'move_down') {
+    $id = intval($_POST['id'] ?? 0);
+    if ($id > 0) {
+      // Get current row
+      $st = $conn->prepare("SELECT id, category_id, COALESCE(sort_order,0) AS sort_order FROM subcategory WHERE id=?");
+      $st->bind_param("i", $id);
+      $st->execute();
+      $cur = $st->get_result()->fetch_assoc();
+      $st->close();
+
+      if ($cur) {
+        $catId = (int)$cur['category_id'];
+        // Ensure clean 1..N first
+        normalize_subcat_order($conn, $catId);
+
+        // Reload order after normalization
+        $st = $conn->prepare("SELECT COALESCE(sort_order,0) AS sort_order FROM subcategory WHERE id=?");
+        $st->bind_param("i", $id);
+        $st->execute();
+        $curOrder = (int)$st->get_result()->fetch_assoc()['sort_order'];
+        $st->close();
+
+        $targetOrder = ($action === 'move_up') ? $curOrder - 1 : $curOrder + 1;
+
+        // Find neighbor at target order
+        $q = $conn->prepare("
+          SELECT id FROM subcategory
+          WHERE category_id=? AND sort_order=?
+          LIMIT 1
+        ");
+        $q->bind_param("ii", $catId, $targetOrder);
+        $q->execute();
+        $nb = $q->get_result()->fetch_assoc();
+        $q->close();
+
+        if ($nb) {
+          $nbId = (int)$nb['id'];
+
+          // Swap using temp value
+          $tmp = -999999;
+
+          $u = $conn->prepare("UPDATE subcategory SET sort_order=? WHERE id=?");
+          // Move current out of the way
+          $u->bind_param("ii", $tmp, $id);
+          $u->execute();
+
+          // Move neighbor into current slot
+          $u->bind_param("ii", $curOrder, $nbId);
+          $u->execute();
+
+          // Move current into neighbor slot
+          $u->bind_param("ii", $targetOrder, $id);
+          $u->execute();
+          $u->close();
+
+          $flash = 'order updated.';
+          $flash_type = 'success';
+        }
+      }
+    }
+  }
+
+  // DELETE
+  if ($action === 'delete') {
+    $id = intval($_POST['id'] ?? 0);
+    if ($id > 0) {
+      // Get category_id of the row to delete (so we can normalize after)
+      $g = $conn->prepare("SELECT category_id FROM subcategory WHERE id=?");
+      $g->bind_param("i", $id);
+      $g->execute();
+      $gr = $g->get_result()->fetch_assoc();
+      $g->close();
+
+      $del = $conn->prepare("DELETE FROM subcategory WHERE id=?");
+      $del->bind_param("i", $id);
+      $del->execute();
+      $del->close();
+
+      if ($gr) {
+        normalize_subcat_order($conn, (int)$gr['category_id']);
+      }
+
+      $flash = 'subcategory deleted successfully.';
+      $flash_type = 'success';
+    }
   }
 }
 
-// UPDATE (name + parent + order)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update') {
-  $id = intval($_POST['id'] ?? 0);
-  $name = trim($_POST['name'] ?? '');
-  $category_id = intval($_POST['category_id'] ?? 0);
-  $sort_order = intval($_POST['sort_order'] ?? 0);
-
-  if ($id > 0 && $name !== '' && $category_id > 0) {
-    $up = $conn->prepare("update subcategory set category_id=?, name=?, sort_order=? where id=?");
-    $up->bind_param("isii", $category_id, $name, $sort_order, $id);
-    $up->execute();
-    $up->close();
-
-    $flash = 'subcategory updated.';
-    $flash_type = 'success';
-  } else {
-    $flash = 'invalid data for update.';
-    $flash_type = 'error';
-  }
-}
-
-// DELETE
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
-  $id = intval($_POST['id'] ?? 0);
-  if ($id > 0) {
-    $del = $conn->prepare("delete from subcategory where id=?");
-    $del->bind_param("i", $id);
-    $del->execute();
-    $del->close();
-    $flash = 'subcategory deleted successfully.';
-    $flash_type = 'success';
-  }
-}
-
-// LIST (ordered by parent category, then subcategory order)
+// LIST (ordered by parent, then subcategory order/id)
 $rows = [];
 $sql = "
-  select s.id, s.name, s.category_id, coalesce(s.sort_order,0) as sort_order,
-         c.name as category_name, coalesce(c.sort_order,0) as c_order
-  from subcategory s
-  join category c on c.id = s.category_id
-  order by c_order asc, c.id asc, s.sort_order asc, s.id asc
+  SELECT s.id, s.name, s.category_id, COALESCE(s.sort_order,0) AS sort_order,
+         c.name AS category_name, COALESCE(c.sort_order,0) AS c_order, c.id AS c_id
+  FROM subcategory s
+  JOIN category c ON c.id = s.category_id
+  ORDER BY c_order ASC, c.id ASC, s.sort_order ASC, s.id ASC
 ";
 $rs = $conn->query($sql);
 while ($r = $rs->fetch_assoc()) { $rows[] = $r; }
@@ -120,7 +237,6 @@ $rs && $rs->close();
     text-decoration:none; background:#6b7280; color:#fff;
     padding:10px 16px; border-radius:999px; font-size:14px;
   }
-
   .flash{ padding:10px; border-radius:10px; text-align:center; margin:15px 0; font-weight:500; }
   .flash.success{ background:#16a34a; }
   .flash.error{ background:#d93025; }
@@ -144,10 +260,21 @@ $rs && $rs->close();
   .table th, .table td{ border-bottom:1px solid #333; padding:12px 8px; text-align:left; vertical-align:middle; }
   .table th{ color:var(--muted); font-weight:600; font-size:14px; }
 
-  .row-form{ display:flex; gap:8px; align-items:center; width:100%; }
-  .row-input{ flex:1 1 auto; min-width:0; padding:10px; border:1px solid #444; border-radius:10px; background:#1e2229; color:#fff; }
+  .row-input{ width:100%; min-width:0; padding:10px; border:1px solid #444; border-radius:10px; background:#1e2229; color:#fff; }
   .row-select{ width:220px; padding:10px; border:1px solid #444; border-radius:10px; background:#1e2229; color:#fff; }
-  .order-input{ width:90px; text-align:center; padding:10px; border:1px solid #444; border-radius:10px; background:#1e2229; color:#fff; }
+
+  /* Arrow controls */
+  .arrows{ display:flex; gap:6px; align-items:center; justify-content:flex-start; }
+  .arrow-btn{
+    background:#2c313a; border:1px solid #3a3f48; color:#fff;
+    width:38px; height:38px; border-radius:10px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .08s ease, background .15s ease;
+  }
+  .arrow-btn:hover{ background:#3a3f48; }
+  .arrow-btn:active{ transform:translateY(1px); }
+  .arrow-btn small{ font-size:16px; line-height:1; }
+
   .row-actions{ display:flex; gap:8px; flex-wrap:wrap; }
 
   @media (max-width: 760px){
@@ -156,8 +283,8 @@ $rs && $rs->close();
     .table tbody tr{ display:block; background:#1a1d23; border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px; }
     .table td{ display:block; border:0; padding:8px 0; }
     .table td[data-label]::before{ content: attr(data-label); display:block; color: var(--muted); font-size:12px; margin-bottom:6px; }
-    .row-form{ display:grid; grid-template-columns: 1fr; gap:10px; }
-    .row-select, .order-input{ width:100%; }
+    .row-select{ width:100%; }
+    .arrows{ gap:10px; }
     .row-actions{ display:grid; grid-template-columns: 1fr; gap:10px; }
     .row-actions .btn{ width:100%; }
   }
@@ -194,54 +321,55 @@ $rs && $rs->close();
       </div>
     </form>
 
-    <!-- List / edit / delete -->
+    <!-- List / edit / move / delete -->
     <table class="table">
       <thead>
         <tr>
           <th style="width:70px;">ID</th>
           <th>Subcategory</th>
           <th style="width:260px;">Parent</th>
-          <th style="width:110px;">Order</th>
-          <th style="width:200px;">Actions</th>
+          <th style="width:160px;">Order</th>
+          <th style="width:220px;">Actions</th>
         </tr>
       </thead>
       <tbody>
         <?php foreach ($rows as $r): ?>
+          <!-- Row-scoped form container (empty). Inputs/buttons below reference this via form="f{id}" -->
+          <form id="f<?= (int)$r['id'] ?>" method="post"></form>
+
           <tr data-id="<?= (int)$r['id'] ?>">
             <td data-label="ID"><?= (int)$r['id'] ?></td>
 
             <td data-label="Subcategory">
-              <form method="post" class="row-form">
-                <input type="hidden" name="action" value="update">
-                <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
-                <input class="row-input" name="name" type="text" value="<?= htmlspecialchars($r['name']) ?>" required>
+              <input type="hidden" name="id" value="<?= (int)$r['id'] ?>" form="f<?= (int)$r['id'] ?>">
+              <input class="row-input" name="name" type="text" value="<?= htmlspecialchars($r['name']) ?>" required form="f<?= (int)$r['id'] ?>">
             </td>
 
             <td data-label="Parent">
-                <select class="row-select" name="category_id" required>
-                  <?php foreach ($cats as $c): ?>
-                    <option value="<?= (int)$c['id'] ?>" <?= ($c['id'] == $r['category_id']) ? 'selected' : '' ?>>
-                      <?= htmlspecialchars($c['name']) ?>
-                    </option>
-                  <?php endforeach; ?>
-                </select>
+              <select class="row-select" name="category_id" required form="f<?= (int)$r['id'] ?>">
+                <?php foreach ($cats as $c): ?>
+                  <option value="<?= (int)$c['id'] ?>" <?= ($c['id'] == $r['category_id']) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($c['name']) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
             </td>
 
             <td data-label="Order">
-              <input class="order-input" type="number" name="sort_order"
-                     value="<?= (int)$r['sort_order'] ?>" min="0" step="1"
-                     title="lower appears first within its category">
+              <div class="arrows">
+                <button type="submit" class="arrow-btn" title="Move up"
+                        name="action" value="move_up" form="f<?= (int)$r['id'] ?>"><small>▲</small></button>
+                <button type="submit" class="arrow-btn" title="Move down"
+                        name="action" value="move_down" form="f<?= (int)$r['id'] ?>"><small>▼</small></button>
+              </div>
             </td>
 
             <td data-label="Actions">
               <div class="row-actions">
-                <button class="btn primary" type="submit">Save</button>
-              </form>
-                <form method="post" onsubmit="return confirm('Delete this subcategory?');">
-                  <input type="hidden" name="action" value="delete">
-                  <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
-                  <button class="btn danger" type="submit">Delete</button>
-                </form>
+                <button class="btn primary" type="submit" name="action" value="update" form="f<?= (int)$r['id'] ?>">Save</button>
+                <button class="btn danger" type="submit" name="action" value="delete"
+                        form="f<?= (int)$r['id'] ?>"
+                        onclick="return confirm('Delete this subcategory?');">Delete</button>
               </div>
             </td>
           </tr>
