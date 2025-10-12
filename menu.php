@@ -15,6 +15,12 @@ $stmt->close();
 
 if (!$cat) { header("Location: index.php#menu"); exit(); }
 
+// All categories for the overlay (ordered like admin)
+$allCats = [];
+$cc = $conn->query("SELECT name, slug FROM category ORDER BY COALESCE(sort_order,0) ASC, id ASC");
+while ($row = $cc->fetch_assoc()) $allCats[] = $row;
+$cc && $cc->close();
+
 // Subcategories (ordered within this category)
 $subs = [];
 $q = $conn->prepare("
@@ -29,8 +35,6 @@ $r = $q->get_result();
 while ($row = $r->fetch_assoc()) $subs[] = $row;
 $q->close();
 
-// Items (defensive de-dup)
-// Items: ordered by the subcategory's order, then item name
 // Items: ordered by category's subcategory order, then item order
 $items = [];
 $iq = $conn->prepare("
@@ -55,8 +59,6 @@ $ri = $iq->get_result();
 while ($row = $ri->fetch_assoc()) $items[] = $row;
 $iq->close();
 
-
-
 // Title: ensure it reads "... MENU"
 $title = strtoupper(trim($cat['name']));
 if (stripos($title, 'MENU') === false) { $title .= ' MENU'; }
@@ -77,7 +79,6 @@ if (stripos($title, 'MENU') === false) { $title .= ' MENU'; }
 @font-face { font-family:"Montserrat-LightItalic"; src:url("fonts/Montserrat-LightItalic.ttf") format("truetype"); font-weight:300; font-style:italic; font-display:swap; }
 
 :root{
-  /* All text colors (except descriptions) */
   --text:#9E3722;
   --accent:#9E3722;
   --underline:#9E3722;
@@ -117,31 +118,31 @@ h1{
 
 .tab{
   flex:0 0 auto;
-  font-family:"Montserrat-Light", sans-serif;  /* default */
+  font-family:"Montserrat-Light", sans-serif;
   font-size: 17px;
   text-transform: uppercase; letter-spacing:.06em;
   color: var(--text); text-decoration:none; position:relative;
-  padding-bottom: 8px; /* space for underline */
+  padding-bottom: 8px;
   transition: color .2s ease;
 }
 .tab.active{ font-family:"Montserrat-SemiBold", sans-serif; }
 .tab.active::after{
   content:""; position:absolute; left:0; right:0; bottom:0;
-  height: 2px;                      /* thinner */
+  height: 2px;
   background: var(--underline);
-  border-radius: 999px;              /* fully rounded ends */
+  border-radius: 999px;
 }
 
 /* Items */
-.items{ margin-top: 24px; display:grid; gap: 10px; } /* tighter list spacing */
+.items{ margin-top: 24px; display:grid; gap: 10px; }
 
 .item{
-    padding-bottom: 10px;
+  padding-bottom: 10px;
   display:grid;
   grid-template-columns: 1fr auto;
   align-items:start;
   column-gap: 12px;
-  row-gap: 2px;                     /* tighter name→desc spacing */
+  row-gap: 2px;
 }
 
 .item-name{
@@ -149,33 +150,33 @@ h1{
   text-transform: uppercase;
   font-size: 11px;
   line-height:1.15;
-  color: var(--text);                /* ensure name uses #9E3722 */
+  color: var(--text);
 }
 
 .item-price{
   font-family:"Montserrat-Regular", sans-serif;
-  color: var(--accent);              /* #9E3722 */
+  color: var(--accent);
   font-size: 11px;
   white-space: nowrap;
 }
 
-/* Description: softer color, limited width, wraps nicely */
+/* Description */
 .item-desc{
   grid-column: 1 / -1;
   font-family:"Montserrat-LightItalic", sans-serif;
   font-size: 8px;
-  color: rgba(0,0,0,.55);            /* keep softer than main text */
-  max-width: 55ch;                   /* limit horizontal width */
-  overflow-wrap: anywhere;           /* wrap long words if needed */
+  color: rgba(0,0,0,.55);
+  max-width: 55ch;
+  overflow-wrap: anywhere;
   line-height: 1.25;
 }
 
-/* Header row + hamburger (thin like underline) */
+/* Header row + hamburger */
 .header-row{ display:flex; justify-content:space-between; align-items:center; }
 .menu-btn{ width: 28px; height: 18px; position:relative; cursor:pointer; }
 .menu-btn span{
   position:absolute; left:0; right:0;
-  height: 2px;                       /* thinner to match underline */
+  height: 2px;
   background: var(--accent);
   border-radius: 999px;
 }
@@ -186,6 +187,82 @@ h1{
 @media (min-width: 900px){
   .container{ padding: 36px 24px 56px; }
 }
+
+/* ===== Category Overlay: slide-in from right ===== */
+#cat-overlay{
+  position: fixed; inset: 0;
+  background: #9E3722;
+  transform: translateX(100%);
+  transition: transform .45s cubic-bezier(.2,.7,.2,1);
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 9999;
+}
+#cat-overlay.open{
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Close button */
+#cat-overlay .overlay-close{
+  position: absolute; top: 14px; right: 14px;
+  background: transparent; border: 0; color: #fff;
+  font-size: 34px; line-height: 1; cursor: pointer;
+}
+
+/* Centered category list */
+#cat-overlay .cat-center{
+  height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: clamp(10px, 2.8vh, 20px);
+  padding: 24px;
+  text-align: center;
+}
+
+/* Links: bold, white, staggered slide-in from right */
+.cat-link{
+  font-family: "Montserrat-Bold", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #fff;
+  text-decoration: none;
+  font-size: clamp(22px, 3.4vw, 40px);
+  opacity: 0;
+  transform: translateX(30px);
+  transition: transform .45s ease, opacity .45s ease;
+}
+/* animate in on open */
+#cat-overlay.open .cat-link{
+  opacity: 1;
+  transform: translateX(0);
+}
+/* ACTIVE (current) category — lower opacity overrides the open rule */
+#cat-overlay.open .cat-link.active{
+  opacity: .35;
+}
+/* Hover micro-lift */
+.cat-link:hover{ transform: translateX(0) translateY(-1px); }
+
+/* Remove the focus box; keep a subtle underline for accessibility */
+.cat-link:focus,
+.cat-link:focus-visible{
+  outline: none;
+  box-shadow: none;
+  text-decoration: none;  /* no underline on focus */
+}
+
+
+/* Stagger (first 8 entries) */
+#cat-overlay.open .cat-link:nth-child(1){ transition-delay: .06s; }
+#cat-overlay.open .cat-link:nth-child(2){ transition-delay: .11s; }
+#cat-overlay.open .cat-link:nth-child(3){ transition-delay: .16s; }
+#cat-overlay.open .cat-link:nth-child(4){ transition-delay: .21s; }
+#cat-overlay.open .cat-link:nth-child(5){ transition-delay: .26s; }
+#cat-overlay.open .cat-link:nth-child(6){ transition-delay: .31s; }
+#cat-overlay.open .cat-link:nth-child(7){ transition-delay: .36s; }
+#cat-overlay.open .cat-link:nth-child(8){ transition-delay: .41s; }
 </style>
 </head>
 <body>
@@ -194,7 +271,7 @@ h1{
     <div class="panel">
       <div class="header-row">
         <h1><?= htmlspecialchars($title) ?></h1>
-        <div class="menu-btn" aria-label="menu">
+        <div class="menu-btn" id="hamburger" aria-label="menu" aria-controls="cat-overlay" aria-expanded="false">
           <span></span><span></span><span></span>
         </div>
       </div>
@@ -226,8 +303,24 @@ h1{
     </div>
   </div>
 
+  <!-- Full-screen Category Overlay -->
+  <div id="cat-overlay" aria-hidden="true">
+    <button class="overlay-close" aria-label="Close">×</button>
+    <div class="cat-center">
+      <?php foreach ($allCats as $c):
+        $isActive = (strtolower($c['slug']) === $slug);
+      ?>
+        <a
+          class="cat-link<?= $isActive ? ' active' : '' ?>"
+          href="menu.php?category=<?= htmlspecialchars(strtolower($c['slug'])) ?>">
+          <?= htmlspecialchars($c['name']) ?>
+        </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
 <script>
-// Filter items by subcategory and set active tab underline
+// Subcategory tab switching
 (function(){
   const tabs = document.querySelectorAll('.tab');
   const items = document.querySelectorAll('#items .item');
@@ -241,6 +334,43 @@ h1{
 
   const first = document.querySelector('.tab');
   if (first) setActive(first.dataset.sub);
+})();
+
+// Overlay open/close with slide-in animation
+(function(){
+  const btn   = document.getElementById('hamburger');
+  const layer = document.getElementById('cat-overlay');
+  const close = layer?.querySelector('.overlay-close');
+
+  if (!btn || !layer) return;
+
+  const open = () => {
+    layer.classList.add('open');
+    layer.setAttribute('aria-hidden', 'false');
+    btn.setAttribute('aria-expanded', 'true');
+    // focus first link
+    const firstLink = layer.querySelector('.cat-link');
+    if (firstLink) firstLink.focus();
+  };
+  const hide = () => {
+    layer.classList.remove('open');
+    layer.setAttribute('aria-hidden', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.focus();
+  };
+
+  btn.addEventListener('click', open);
+  close?.addEventListener('click', hide);
+
+  // click on backdrop closes (ignore clicks on content)
+  layer.addEventListener('click', (e) => {
+    if (e.target === layer) hide();
+  });
+
+  // ESC to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && layer.classList.contains('open')) hide();
+  });
 })();
 </script>
 
