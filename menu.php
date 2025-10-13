@@ -41,7 +41,7 @@ $iq = $conn->prepare("
   SELECT
     i.id,
     i.name,
-    i.description,
+    COALESCE(i.description, '') AS description,
     i.price,
     i.subcategory_id,
     COALESCE(s.sort_order, 0) AS s_order,
@@ -59,7 +59,7 @@ $ri = $iq->get_result();
 while ($row = $ri->fetch_assoc()) $items[] = $row;
 $iq->close();
 
-// Title: ensure it reads "... MENU"
+// Title: only Food has "MENU"
 if (strtolower($cat['slug']) === 'food') {
   $title = strtoupper(trim($cat['name']) . ' MENU');
 } else {
@@ -74,12 +74,35 @@ if (strtolower($cat['slug']) === 'food') {
 <title><?= htmlspecialchars($title) ?></title>
 
 <style>
-/* Fonts */
-@font-face { font-family:"Montserrat-Bold"; src:url("fonts/Montserrat-Bold.ttf") format("truetype"); font-weight:700; font-style:normal; font-display:swap; }
-@font-face { font-family:"Montserrat-SemiBold"; src:url("fonts/Montserrat-SemiBold.ttf") format("truetype"); font-weight:600; font-style:normal; font-display:swap; }
-@font-face { font-family:"Montserrat-Regular"; src:url("fonts/Montserrat-Regular.ttf") format("truetype"); font-weight:400; font-style:normal; font-display:swap; }
-@font-face { font-family:"Montserrat-Light"; src:url("fonts/Montserrat-Light.ttf") format("truetype"); font-weight:300; font-style:normal; font-display:swap; }
-@font-face { font-family:"Montserrat-LightItalic"; src:url("fonts/Montserrat-LightItalic.ttf") format("truetype"); font-weight:300; font-style:italic; font-display:swap; }
+/* ===== Fonts: single family with proper weights/styles (iOS friendly) ===== */
+@font-face{
+  font-family:"Montserrat";
+  src: url("fonts/Montserrat-Regular.woff2") format("woff2"),
+       url("fonts/Montserrat-Regular.woff")  format("woff"),
+       url("fonts/Montserrat-Regular.ttf")   format("truetype");
+  font-weight:400; font-style:normal; font-display:swap;
+}
+@font-face{
+  font-family:"Montserrat";
+  src: url("fonts/Montserrat-SemiBold.woff2") format("woff2"),
+       url("fonts/Montserrat-SemiBold.woff")  format("woff"),
+       url("fonts/Montserrat-SemiBold.ttf")   format("truetype");
+  font-weight:600; font-style:normal; font-display:swap;
+}
+@font-face{
+  font-family:"Montserrat";
+  src: url("fonts/Montserrat-Bold.woff2") format("woff2"),
+       url("fonts/Montserrat-Bold.woff")  format("woff"),
+       url("fonts/Montserrat-Bold.ttf")   format("truetype");
+  font-weight:700; font-style:normal; font-display:swap;
+}
+@font-face{
+  font-family:"Montserrat";
+  src: url("fonts/Montserrat-LightItalic.woff2") format("woff2"),
+       url("fonts/Montserrat-LightItalic.woff")  format("woff"),
+       url("fonts/Montserrat-LightItalic.ttf")   format("truetype");
+  font-weight:300; font-style:italic; font-display:swap;
+}
 
 :root{
   --text:#9E3722;
@@ -91,7 +114,7 @@ if (strtolower($cat['slug']) === 'food') {
 html,body{ margin:0; height:100%; }
 
 body{
-  font-family:"Montserrat-Regular", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family:"Montserrat", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   color:var(--text);
   background: url("images/background/home-background.png") top center / cover no-repeat;
   background-attachment: scroll;
@@ -104,7 +127,8 @@ body{
 /* Header */
 h1{
   margin: 0 0 14px;
-  font-family:"Montserrat-Bold", sans-serif;
+  font-family:"Montserrat", sans-serif;
+  font-weight:700;
   font-size: 31px;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -121,17 +145,18 @@ h1{
 
 .tab{
   flex:0 0 auto;
-  font-family:"Montserrat-Light", sans-serif;
+  font-family:"Montserrat", sans-serif;
+  font-weight:300;                 /* Light */
   font-size: 17px;
   text-transform: uppercase; letter-spacing:.06em;
   color: var(--text); text-decoration:none; position:relative;
   padding-bottom: 8px;
   transition: color .2s ease;
 }
-.tab.active{ font-family:"Montserrat-SemiBold", sans-serif; }
+.tab.active{ font-weight:600; }   /* SemiBold */
 .tab.active::after{
   content:""; position:absolute; left:0; right:0; bottom:0;
-  height: 1.5px;              /* thinner line */
+  height: 1.5px;
   background: var(--underline);
   border-radius: 999px;
 }
@@ -149,28 +174,32 @@ h1{
 }
 
 .item-name{
-  font-family:"Montserrat-SemiBold", sans-serif;
+  font-family:"Montserrat", sans-serif;
+  font-weight:600;                 /* SemiBold */
   text-transform: uppercase;
   font-size: 12px;
   line-height:1.15;
-  color: var(--text);                /* ensure name uses #9E3722 */
+  color: var(--text);
 }
 
 .item-price{
-  font-family:"Montserrat-Regular", sans-serif;
-  color: var(--accent);              /* #9E3722 */
+  font-family:"Montserrat", sans-serif;
+  font-weight:400;                 /* Regular */
+  color: var(--accent);
   font-size: 12px;
   white-space: nowrap;
 }
 
-/* Description */
+/* Description (the one that failed on iPhone) */
 .item-desc{
   grid-column: 1 / -1;
-  font-family:"Montserrat-LightItalic", sans-serif;
+  font-family:"Montserrat", sans-serif;
+  font-weight:300;                 /* Light */
+  font-style:italic;
   font-size: 10px;
-  color: #53504F;            /* keep softer than main text */
-  max-width: 35ch;                   /* limit horizontal width */
-  overflow-wrap: anywhere;           /* wrap long words if needed */
+  color: #53504F;
+  max-width: 35ch;
+  overflow-wrap: anywhere;
   line-height: 1.25;
 }
 
@@ -179,14 +208,12 @@ h1{
 .menu-btn{ width: 28px; height: 18px; position:relative; cursor:pointer; }
 .menu-btn span{
   position:absolute; left:0; right:0;
-  height: 1.5px;               /* keep this thinness */
+  height: 1.5px;
   background: var(--accent);
   border-radius: 999px;
-  transform: scaleY(0.75);     /* apply to ALL 3 lines equally */
-  transform-origin: center;    /* ensures even scaling */
+  transform: scaleY(0.75);
+  transform-origin: center;
 }
-
-
 .menu-btn span:nth-child(1){ top:0; }
 .menu-btn span:nth-child(2){ top:8px; }
 .menu-btn span:nth-child(3){ bottom:0; }
@@ -197,9 +224,8 @@ h1{
 
 .menu-btn{
   width: 28px; height: 18px; position:relative; cursor:pointer;
-  transform: translateY(-6px);   /* <-- lift it slightly */
+  transform: translateY(-6px);
 }
-
 
 /* ===== Category Overlay: slide-in from right ===== */
 #cat-overlay{
@@ -234,9 +260,10 @@ h1{
   text-align: center;
 }
 
-/* Links: bold, white, staggered slide-in from right */
+/* Overlay links */
 .cat-link{
-  font-family: "Montserrat-Bold", sans-serif;
+  font-family:"Montserrat", sans-serif;
+  font-weight:700;                 /* Bold */
   text-transform: uppercase;
   letter-spacing: .06em; 
   color: #fff;
@@ -246,24 +273,16 @@ h1{
   transform: translateX(30px);
   transition: transform .45s ease, opacity .45s ease;
 }
-/* animate in on open */
-#cat-overlay.open .cat-link{
-  opacity: 1;
-  transform: translateX(0);
-}
-/* ACTIVE (current) category — lower opacity overrides the open rule */
-#cat-overlay.open .cat-link.active{
-  opacity: .35;
-}
-/* Hover micro-lift */
+#cat-overlay.open .cat-link{ opacity: 1; transform: translateX(0); }
+#cat-overlay.open .cat-link.active{ opacity: .35; }
 .cat-link:hover{ transform: translateX(0) translateY(-1px); }
 
-/* Remove the focus box; keep a subtle underline for accessibility */
+/* Focus – no underline/outline */
 .cat-link:focus,
 .cat-link:focus-visible{
   outline: none;
   box-shadow: none;
-  text-decoration: none;  /* no underline on focus */
+  text-decoration: none;
 }
 
 /* Stagger (first 8 entries) */
@@ -360,7 +379,6 @@ h1{
     layer.classList.add('open');
     layer.setAttribute('aria-hidden', 'false');
     btn.setAttribute('aria-expanded', 'true');
-    // focus first link
     const firstLink = layer.querySelector('.cat-link');
     if (firstLink) firstLink.focus();
   };
@@ -374,12 +392,8 @@ h1{
   btn.addEventListener('click', open);
   close?.addEventListener('click', hide);
 
-  // click on backdrop closes (ignore clicks on content)
-  layer.addEventListener('click', (e) => {
-    if (e.target === layer) hide();
-  });
+  layer.addEventListener('click', (e) => { if (e.target === layer) hide(); });
 
-  // ESC to close
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && layer.classList.contains('open')) hide();
   });
