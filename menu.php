@@ -74,13 +74,20 @@ if (strtolower($cat['slug']) === 'food') {
 <title><?= htmlspecialchars($title) ?></title>
 
 <style>
-/* ===== Fonts: single family with proper weights/styles (iOS friendly) ===== */
+/* ===== Fonts (iOS friendly) ===== */
 @font-face{
   font-family:"Montserrat";
   src: url("fonts/Montserrat-Regular.woff2") format("woff2"),
        url("fonts/Montserrat-Regular.woff")  format("woff"),
        url("fonts/Montserrat-Regular.ttf")   format("truetype");
   font-weight:400; font-style:normal; font-display:swap;
+}
+@font-face{
+  font-family:"Montserrat";
+  src: url("fonts/Montserrat-Medium.woff2") format("woff2"),
+       url("fonts/Montserrat-Medium.woff")  format("woff"),
+       url("fonts/Montserrat-Medium.ttf")   format("truetype");
+  font-weight:500; font-style:normal; font-display:swap;   /* << use for CONTACT US */
 }
 @font-face{
   font-family:"Montserrat";
@@ -108,6 +115,7 @@ if (strtolower($cat['slug']) === 'food') {
   --text:#9E3722;
   --accent:#9E3722;
   --underline:#9E3722;
+  --overlay:#9E3722;
 }
 
 *{ box-sizing:border-box; }
@@ -146,14 +154,14 @@ h1{
 .tab{
   flex:0 0 auto;
   font-family:"Montserrat", sans-serif;
-  font-weight:300;                 /* Light */
+  font-weight:300;
   font-size: 17px;
   text-transform: uppercase; letter-spacing:.06em;
   color: var(--text); text-decoration:none; position:relative;
   padding-bottom: 8px;
   transition: color .2s ease;
 }
-.tab.active{ font-weight:600; }   /* SemiBold */
+.tab.active{ font-weight:600; }
 .tab.active::after{
   content:""; position:absolute; left:0; right:0; bottom:0;
   height: 1.5px;
@@ -172,30 +180,25 @@ h1{
   column-gap: 12px;
   row-gap: 2px;
 }
-
 .item-name{
   font-family:"Montserrat", sans-serif;
-  font-weight:600;                 /* SemiBold */
+  font-weight:600;
   text-transform: uppercase;
   font-size: 12px;
   line-height:1.15;
   color: var(--text);
 }
-
 .item-price{
   font-family:"Montserrat", sans-serif;
-  font-weight:400;                 /* Regular */
+  font-weight:400;
   color: var(--accent);
   font-size: 12px;
   white-space: nowrap;
 }
-
-/* Description (the one that failed on iPhone) */
 .item-desc{
   grid-column: 1 / -1;
   font-family:"Montserrat", sans-serif;
-  font-weight:300;                 /* Light */
-  font-style:italic;
+  font-weight:300; font-style:italic;
   font-size: 10px;
   color: #53504F;
   max-width: 35ch;
@@ -221,16 +224,12 @@ h1{
 @media (min-width: 900px){
   .container{ padding: 36px 24px 56px; }
 }
+.menu-btn{ transform: translateY(-6px); }
 
-.menu-btn{
-  width: 28px; height: 18px; position:relative; cursor:pointer;
-  transform: translateY(-6px);
-}
-
-/* ===== Category Overlay: slide-in from right ===== */
+/* ===== Category Overlay ===== */
 #cat-overlay{
   position: fixed; inset: 0;
-  background: #9E3722;
+  background: var(--overlay);
   transform: translateX(100%);
   transition: transform .45s cubic-bezier(.2,.7,.2,1);
   visibility: hidden;
@@ -243,11 +242,21 @@ h1{
   pointer-events: auto;
 }
 
-/* Close button */
+/* Close button (top-right) */
 #cat-overlay .overlay-close{
-  position: absolute; top: 14px; right: 14px;
+  position: absolute; top: 18px; right: 18px;
   background: transparent; border: 0; color: #fff;
-  font-size: 34px; line-height: 1; cursor: pointer;
+  font-size: 36px; line-height: 1; cursor: pointer;
+}
+
+/* Home icon (top-left) — aligned with X */
+#cat-overlay .home-link{
+  position: absolute; top: 18px; left: 18px;              /* same offsets as X */
+  display: inline-flex; align-items:center; justify-content:center;
+  width: 36px; height: 36px;                               /* match X size */
+}
+#cat-overlay .home-link img{
+  width: 36px; height: 36px; display:block;
 }
 
 /* Centered category list */
@@ -255,7 +264,7 @@ h1{
   height: 100%;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  gap: clamp(10px, 2.8vh, 20px);
+  gap: clamp(12px, 3vh, 26px);
   padding: 24px;
   text-align: center;
 }
@@ -263,12 +272,12 @@ h1{
 /* Overlay links */
 .cat-link{
   font-family:"Montserrat", sans-serif;
-  font-weight:700;                 /* Bold */
+  font-weight:700;
   text-transform: uppercase;
   letter-spacing: .06em; 
   color: #fff;
   text-decoration: none;
-  font-size: clamp(22px, 3.4vw, 40px);
+  font-size: clamp(22px, 3.6vw, 44px);
   opacity: 0;
   transform: translateX(30px);
   transition: transform .45s ease, opacity .45s ease;
@@ -276,13 +285,36 @@ h1{
 #cat-overlay.open .cat-link{ opacity: 1; transform: translateX(0); }
 #cat-overlay.open .cat-link.active{ opacity: .35; }
 .cat-link:hover{ transform: translateX(0) translateY(-1px); }
+.cat-link:focus, .cat-link:focus-visible{ outline: none; box-shadow: none; text-decoration: none; }
 
-/* Focus – no underline/outline */
-.cat-link:focus,
-.cat-link:focus-visible{
-  outline: none;
-  box-shadow: none;
-  text-decoration: none;
+/* CONTACT section + icons */
+.contact-wrap{
+  position: absolute;
+  left: 0; right: 0; bottom: 52px;
+  text-align: center;
+}
+.contact-title{
+  color:#F3EBDF;
+  font-family:"Montserrat",sans-serif;
+  font-weight:500;                      /* Montserrat-Medium */
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+.icon-row{
+  display:flex; gap: 9px;
+  justify-content:center; align-items:center;
+}
+.icon-link{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:auto; height:auto;              /* no circle background */
+}
+.icon-link img{
+  width: 34px; height: 34px; display:block;  /* bigger pure SVG */
+}
+@media (min-width:480px){
+  .icon-link img{ width: 38px; height: 38px; }
 }
 
 /* Stagger (first 8 entries) */
@@ -336,7 +368,13 @@ h1{
 
   <!-- Full-screen Category Overlay -->
   <div id="cat-overlay" aria-hidden="true">
+    <!-- Home icon (top-left) -->
+    <a class="home-link" href="index.php" aria-label="Home">
+      <img src="images/icons/home_icon.svg" alt="">
+    </a>
+
     <button class="overlay-close" aria-label="Close">×</button>
+
     <div class="cat-center">
       <?php foreach ($allCats as $c):
         $isActive = (strtolower($c['slug']) === $slug);
@@ -347,6 +385,19 @@ h1{
           <?= htmlspecialchars($c['name']) ?>
         </a>
       <?php endforeach; ?>
+    </div>
+
+    <!-- CONTACT + icons at bottom -->
+    <div class="contact-wrap">
+      <div class="contact-title">CONTACT US</div>
+      <div class="icon-row">
+        <a class="icon-link" href="tel:+96170202448" aria-label="Call">
+          <img src="images/icons/phone_icon.svg" alt="">
+        </a>
+        <a class="icon-link" href="https://www.instagram.com/oops.restocafe?igsh=MTd0NzA3d2szZmQ4Mw==" target="_blank" rel="noopener" aria-label="Instagram">
+          <img src="images/icons/insta_icon.svg" alt="">
+        </a>
+      </div>
     </div>
   </div>
 
@@ -391,12 +442,8 @@ h1{
 
   btn.addEventListener('click', open);
   close?.addEventListener('click', hide);
-
   layer.addEventListener('click', (e) => { if (e.target === layer) hide(); });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && layer.classList.contains('open')) hide();
-  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && layer.classList.contains('open')) hide(); });
 })();
 </script>
 
