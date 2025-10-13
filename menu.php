@@ -290,7 +290,7 @@ h1{
 /* CONTACT section + icons */
 .contact-wrap{
   position: absolute;
-  left: 0; right: 0; bottom: 52px;
+  left: 0; right: 0; bottom: 22px;
   text-align: center;
 }
 .contact-title{
