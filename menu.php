@@ -266,7 +266,6 @@ h1{
   text-decoration: none;  /* no underline on focus */
 }
 
-
 /* Stagger (first 8 entries) */
 #cat-overlay.open .cat-link:nth-child(1){ transition-delay: .06s; }
 #cat-overlay.open .cat-link:nth-child(2){ transition-delay: .11s; }

@@ -105,7 +105,7 @@ $res && $res->close();
     /* MENU button (text only) */
     .menu-link {
       text-decoration: none;
-      color: var(--text);
+      color: #F3EBDF;
       font-weight: 300;
       letter-spacing: 0.16em;
       font-size: clamp(46px, 6vw, 34px);
@@ -125,11 +125,11 @@ $res && $res->close();
     .cat-link {
       font-family: "Montserrat-Bold", sans-serif;
       text-decoration: none;
-      color: var(--text);
+      color: #F3EBDF;
       text-transform: uppercase;
       font-weight: 700;
       letter-spacing: 0em;
-      font-size: clamp(36px, 4.8vw, 28px);
+      font-size: clamp(30px, 4.8vw, 28px);
       line-height: 1.2;
       background: none;
       padding: 4px 0;
