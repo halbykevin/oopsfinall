@@ -3,6 +3,21 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
+// Helper to best-guess client IP
+function client_ip(): string {
+    foreach (['HTTP_CF_CONNECTING_IP','HTTP_X_FORWARDED_FOR','HTTP_X_REAL_IP','REMOTE_ADDR'] as $k) {
+        if (!empty($_SERVER[$k])) {
+            $v = $_SERVER[$k];
+            if ($k === 'HTTP_X_FORWARDED_FOR') {
+                $parts = explode(',', $v);
+                return trim($parts[0]);
+            }
+            return trim($v);
+        }
+    }
+    return '';
+}
+
 // Handle submit
 $ok = null; $msg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -13,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $exp   = (int)($_POST['experience'] ?? 0);
     $serv  = (int)($_POST['service'] ?? 0);
-    $food  = (int)($_POST['food'] ?? 0);          // NEW
+    $food  = (int)($_POST['food'] ?? 0);
     $atm   = (int)($_POST['atmosphere'] ?? 0);
     $text1 = trim($_POST['text1'] ?? '');
     $text2 = trim($_POST['text2'] ?? '');
@@ -24,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($dob === '')   $errs[] = 'Date of birth is required.';
     if ($phone === '') $errs[] = 'Phone number is required.';
     if ($exp  < 1 || $exp  > 5) $errs[] = 'Please rate Overall Experience (1–5).';
+    if ($food < 1 || $food > 5) $errs[] = 'Please rate Food (1–5).';
     if ($serv < 1 || $serv > 5) $errs[] = 'Please rate Service (1–5).';
-    if ($food < 1 || $food > 5) $errs[] = 'Please rate Food (1–5).';        // NEW
     if ($atm  < 1 || $atm  > 5) $errs[] = 'Please rate Atmosphere (1–5).';
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $errs[] = 'Email format is invalid.';
 
@@ -36,21 +51,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             VALUES
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), NOW())
         ");
-        // 5 strings + 4 ints (exp,serv,atm,food) + 2 strings
         $stmt->bind_param(
             "sssssiiiiss",
             $fname, $lname, $dob, $phone, $email, $exp, $serv, $atm, $food, $text1, $text2
         );
         $ok = $stmt->execute();
-        if (!$ok) {
-            $msg = 'There was an error saving your feedback. Please try again.';
-            error_log('FEEDBACK INSERT ERROR: ' . $stmt->error);
-        } else {
-            $msg = 'Thank you! Your feedback has been submitted.';
-            $fname = $lname = $dob = $phone = $email = $text1 = $text2 = '';
-            $exp = $serv = $atm = $food = 0;
-        }
         $stmt->close();
+
+        if ($ok) {
+            // Send notification email (non-blocking)
+            require_once __DIR__ . '/mail_send.php';
+            try {
+                $submitted_at = (new DateTime('now', new DateTimeZone('Asia/Beirut')))->format('Y-m-d H:i:s') . ' Asia/Beirut';
+                $payload = [
+                    'fname'        => $fname,
+                    'lname'        => $lname,
+                    'dateofbirth'  => $dob,
+                    'number'       => $phone,
+                    'email'        => $email,
+                    'experience'   => $exp,
+                    'food'         => $food,
+                    'service'      => $serv,
+                    'atmosphere'   => $atm,
+                    'text1'        => $text1,
+                    'text2'        => $text2,
+                    'submitted_at' => $submitted_at,
+                    'ip'           => client_ip(),
+                    'user_agent'   => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 220),
+                ];
+                @send_feedback_email($payload);
+            } catch (Throwable $e) {
+                error_log('MAIL EXCEPTION (feedback): ' . $e->getMessage());
+            }
+
+            // Redirect to thank-you page
+            header("Location: feedbackdone.php");
+            exit;
+        } else {
+            $msg = 'There was an error saving your feedback. Please try again.';
+            error_log('FEEDBACK INSERT ERROR: ' . $conn->error);
+        }
     } else {
         $ok = false;
         $msg = implode(' ', $errs);
@@ -123,7 +163,7 @@ form{
 .stars{ display:flex; justify-content:center; gap:6px; font-size:26px; line-height:1; }
 .star{ cursor:pointer; user-select:none; transition:transform .08s ease; position:relative; }
 .star:hover{ transform:scale(1.15); }
-.star::before{ content:'☆'; }          /* show ONE star via CSS only */
+.star::before{ content:'☆'; }
 .star.active::before{ content:'★'; }
 
 /* Submit */
