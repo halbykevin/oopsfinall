@@ -21,6 +21,11 @@
   --brand:#9E3722;
   --bg:#F3EBDF;
   --text:#9E3722;
+
+  /* Emblem layout controls (px for device-consistent placement) */
+  --emblem-top: 88px;     /* distance from very top of page */
+  --emblem-size: 110px;   /* emblem width */
+  --emblem-gap: 26px;     /* space between emblem and heading */
 }
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -32,13 +37,14 @@ body{
   display:flex;
   flex-direction:column;
   align-items:center;
-  justify-content:center;
+  justify-content:flex-start;  /* start since we reserve space ourselves */
   min-height:100vh;
   position:relative;
   overflow:hidden;
 }
 
-/* Top emblem behind text */
+/* (Optional) faint background emblem — disabled to avoid confusion with the top icon */
+/*
 body::before{
   content:"";
   position:absolute;
@@ -51,19 +57,21 @@ body::before{
   opacity:.08;
   z-index:0;
 }
+*/
 
-/* Foreground emblem on top */
-.top-emblem {
-  position: absolute;
-  top: 200px; /* distance from top of screen */
-  left: 50%;
-  transform: translateX(-50%);
-  width: 110px; /* adjust as needed */
-  height: auto;
-  z-index: 10;
+/* Foreground emblem: locked in place across devices */
+.top-emblem{
+  position:absolute;              /* anchor to the page, not the flow */
+  top: var(--emblem-top);
+  left:50%;
+  transform:translateX(-50%);
+  width: var(--emblem-size);
+  height:auto;
+  z-index: 2;
+  pointer-events:none;            /* never block taps/clicks */
 }
 
-/* Content */
+/* Content sits below emblem automatically */
 .container{
   position:relative;
   z-index:1;
@@ -71,6 +79,9 @@ body::before{
   display:flex;
   flex-direction:column;
   align-items:center;
+  /* Reserve space = emblem top + emblem size + gap */
+  padding-top: calc(var(--emblem-top) + var(--emblem-size) + var(--emblem-gap));
+  width:min(92vw, 420px);
 }
 
 /* Logo at bottom */
@@ -88,7 +99,6 @@ h1{
   text-align:center;
   letter-spacing:.4px;
   color:var(--brand);
-  margin-top:40px;
 }
 p {
   text-align: center;
@@ -108,12 +118,21 @@ p {
   border-radius:2px;
   margin:12px auto 24px;
 }
+
+/* Small screens: scale emblem a bit but keep same visual position logic */
+@media (max-width: 380px){
+  :root{
+    --emblem-top: 72px;
+    --emblem-size: 96px;
+    --emblem-gap: 22px;
+  }
+}
 </style>
 </head>
 <body>
 
-  <!-- Emblem at the top center -->
-  <img src="images/icons/emblem_form_p2.svg" alt="Emblem" class="top-emblem">
+  <!-- Emblem at the top center (stays put across devices) -->
+  <img src="images/icons/emblem_form_p2.svg" alt="Emblem" class="top-emblem"><br>
 
   <div class="container">
     <h1>Thank you for your<br>Valuable Feedback</h1>
