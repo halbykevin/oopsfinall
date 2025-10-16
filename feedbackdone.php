@@ -52,6 +52,17 @@ body::before{
   z-index:0;
 }
 
+/* Foreground emblem on top */
+.top-emblem {
+  position: absolute;
+  top: 200px; /* distance from top of screen */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px; /* adjust as needed */
+  height: auto;
+  z-index: 10;
+}
+
 /* Content */
 .container{
   position:relative;
@@ -64,14 +75,14 @@ body::before{
 
 /* Logo at bottom */
 .logo{
-  width:100px;
+  width:120px;
   height:auto;
   margin-top:30px;
 }
 
 /* Text */
 h1{
-  font-size:15px;
+  font-size:17px;
   font-weight:700;
   text-transform:uppercase;
   text-align:center;
@@ -79,17 +90,19 @@ h1{
   color:var(--brand);
   margin-top:40px;
 }
-p{
-  text-align:center;
-  font-weight:300;
-  font-size:13px;
-  color:var(--brand);
-  max-width:260px;
-  line-height:1.6;
-  margin:10px auto 18px;
+p {
+  text-align: center;
+  font-weight: 300;
+  font-size: 17px;
+  color: var(--brand);
+  max-width: 260px;
+  line-height: 1.6;
+  margin: 10px auto 18px;
+  text-transform: uppercase;
 }
+
 .hr{
-  width:80px;
+  width:150px;
   height:2px;
   background:rgba(158,55,34,.35);
   border-radius:2px;
@@ -99,15 +112,18 @@ p{
 </head>
 <body>
 
-<div class="container">
-  <h1>Thank you for your<br>Valuable Feedback</h1>
-  <p>We’ll keep improving so<br>you’ll do it again.</p>
+  <!-- Emblem at the top center -->
+  <img src="images/icons/emblem_form_p2.svg" alt="Emblem" class="top-emblem">
 
-  <div class="hr"></div>
+  <div class="container">
+    <h1>Thank you for your<br>Valuable Feedback</h1>
+    <p>We’ll keep improving so<br>you’ll do it again.</p>
 
-  <!-- oOps logo instead of text -->
-  <img src="images/logo/oopslogo_web.svg" alt="oOps Logo" class="logo">
-</div>
+    <div class="hr"></div>
+
+    <!-- oOps logo instead of text -->
+    <img src="images/logo/form_p2_logodark.svg" alt="oOps Logo" class="logo">
+  </div>
 
 </body>
 </html>

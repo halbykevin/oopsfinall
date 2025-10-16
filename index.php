@@ -33,10 +33,10 @@ $res && $res->close();
 $scheme   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host     = $_SERVER['HTTP_HOST'] ?? 'oopsrestocafe.com';
 $homeUrl  = $scheme . '://' . $host . '/';
-$siteName = 'oOps Resto Cafe';  // <- adjust to your brand styling
+$siteName = 'oOps Resto Cafe';
 $pageTitle = $siteName . ' — Menu & Categories';
 $description = 'Explore the oOps Resto Cafe menu: appetizers, salads, sandwiches, burgers, pasta, and more. Fresh ingredients, bold flavors, and a cozy vibe.';
-$ogImage = $homeUrl . 'images/og/og-image.jpg'; // <- put a 1200x630 image here
+$ogImage = $homeUrl . 'images/og/og-image.jpg';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -62,13 +62,13 @@ $ogImage = $homeUrl . 'images/og/og-image.jpg'; // <- put a 1200x630 image here
 <meta name="twitter:description" content="<?= htmlspecialchars($description) ?>" />
 <meta name="twitter:image" content="<?= htmlspecialchars($ogImage) ?>" />
 
-<!-- Favicons (optional: drop files in /images/favicons/) -->
+<!-- Favicons -->
 <link rel="icon" href="/images/favicons/favicon.ico">
 <link rel="apple-touch-icon" href="/images/favicons/apple-touch-icon.png" sizes="180x180">
 <link rel="icon" type="image/png" href="/images/favicons/favicon-32x32.png" sizes="32x32">
 <link rel="icon" type="image/png" href="/images/favicons/favicon-16x16.png" sizes="16x16">
 
-<!-- Fonts (keep TTF for now; add WOFF2 later if you export them) -->
+<!-- Fonts & Styles -->
 <style>
   @font-face {
     font-family: "Montserrat-Light";
@@ -87,7 +87,6 @@ $ogImage = $homeUrl . 'images/og/og-image.jpg'; // <- put a 1200x630 image here
 
   :root { --text:#ffffff; }
 
-  /* Accessible, visually-hidden H1 (SEO) */
   .sr-only{
     position:absolute !important;
     width:1px; height:1px;
@@ -100,12 +99,32 @@ $ogImage = $homeUrl . 'images/og/og-image.jpg'; // <- put a 1200x630 image here
   body{
     font-family:"Montserrat-Light", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     color:var(--text);
-    background: url("images/background/landing-background.png") top center no-repeat;
-    background-size: 100% 200vh;  /* covers both sections */
-    background-attachment: scroll;
-    overflow-x:hidden;
     background-color:#9E3722;
+    overflow-x:hidden;
   }
+
+  .section{
+    min-height:100vh;
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    padding:0;
+    position: relative; /* Needed for absolute emblem positioning */
+  }
+
+  .logo {
+    width: clamp(160px, 450vw, 240px);
+    height: auto;
+    display: block;
+    margin-bottom: 16px;
+  }
+
+  .menu-link{
+    text-decoration:none; color:#F3EBDF;
+    font-weight:300; letter-spacing:.16em;
+    font-size:clamp(42px, 6vw, 34px);
+    background:none; border:0; outline:0; cursor:pointer;
+    transition:opacity .2s ease;
+  }
+  .menu-link:hover{ opacity:.85; }
 
   .list{
     width:100%; max-width:520px;
@@ -114,21 +133,6 @@ $ogImage = $homeUrl . 'images/og/og-image.jpg'; // <- put a 1200x630 image here
     padding-bottom:180px;
   }
 
-  .section{
-    min-height:100vh;
-    display:flex; flex-direction:column; justify-content:center; align-items:center;
-    padding:0;
-  }
-
-  .menu-link{
-    text-decoration:none; color:#F3EBDF;
-    font-weight:300; letter-spacing:.16em;
-    font-size:clamp(46px, 6vw, 34px);
-    background:none; border:0; outline:0; cursor:pointer;
-    padding-top:178px; transition:opacity .2s ease;
-  }
-  .menu-link:hover{ opacity:.85; }
-
   .cat-link{
     font-family:"Montserrat-Bold", sans-serif;
     text-decoration:none; color:#F3EBDF; text-transform:uppercase; font-weight:700;
@@ -136,9 +140,38 @@ $ogImage = $homeUrl . 'images/og/og-image.jpg'; // <- put a 1200x630 image here
     background:none; padding:4px 0; transition:opacity .2s ease;
   }
   .cat-link:hover{ opacity:.9; }
+
+  /* Emblems: TL & MR are within the section; BL is fixed to screen corner */
+  .emblem { z-index: 0; }
+
+  .emblem.top-left {
+    position: absolute;
+    top: -170px;
+    left: -220px;
+    width: 450px;
+    opacity: 0.1;
+  }
+  .emblem.middle-right {
+    position: absolute;
+    top: 92%;
+    right: 0px;
+    width: 300px;
+    opacity: 0.1;
+    transform: translateY(-50%);
+  }
+  /* UPDATED: bottom-left sticks to bottom-left of the screen, same width */
+.emblem.bottom-left {
+  position: absolute;   /* stays inside the section flow */
+  bottom: -950px;            /* exactly at the bottom edge of the section */
+  left: 0px;              /* aligned to the left edge */
+  width: 350px;         /* same size you had */
+  opacity: 0.1;         /* keep it subtle */
+  z-index: 0;
+  pointer-events: none; /* ignore clicks */
+}
 </style>
 
-<!-- JSON-LD: basic Restaurant schema -->
+<!-- JSON-LD: Restaurant schema -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -152,11 +185,15 @@ $ogImage = $homeUrl . 'images/og/og-image.jpg'; // <- put a 1200x630 image here
 </head>
 <body>
 
-<!-- Hidden H1 purely for SEO/Accessibility -->
 <h1 class="sr-only"><?= htmlspecialchars($siteName) ?> — Menu</h1>
 
-<!-- Top section -->
+<!-- Top section with logo, MENU, and emblems -->
 <section class="section" id="top">
+  <img src="images/icons/emblem_web_landingTL.svg" alt="" class="emblem top-left">
+  <img src="images/icons/emblem_web_landingMR.svg" alt="" class="emblem middle-right">
+  <img src="images/icons/emblem_web_landingBL.svg" alt="" class="emblem bottom-left">
+
+  <img src="images/logo/oopslogo_web.svg" alt="oOps Logo" class="logo">
   <a href="#menu" class="menu-link">MENU</a>
 </section>
 
