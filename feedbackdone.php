@@ -119,6 +119,8 @@ p {
   margin:12px auto 24px;
 }
 
+
+ 
 /* Small screens: scale emblem a bit but keep same visual position logic */
 @media (max-width: 380px){
   :root{
