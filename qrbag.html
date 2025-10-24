@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>oOps! Feedback</title>
+
+  <style>
+    /* ====== LOCAL FONTS ====== */
+    @font-face {
+      font-family: "MontserratRegular";
+      src: url("fonts/Montserrat-Regular.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: "MontserratBold";
+      src: url("fonts/Montserrat-Bold.ttf") format("truetype");
+      font-weight: 700;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: "MontserratThinItalic";
+      src: url("fonts/Montserrat-ThinItalic.ttf") format("truetype");
+      font-weight: 100;
+      font-style: italic;
+    }
+
+    /* ====== RESET ====== */
+    * {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      background-color: #9E3722; /* full red background */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #F3EBDF;
+      padding: 24px;
+      font-family: "MontserratRegular", system-ui, sans-serif;
+    }
+
+    /* main wrapper to control max width like your poster */
+    .content {
+      max-width: 320px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* top emblem */
+    .top-logo {
+      width: 100px;
+      height: 100px;
+      margin-bottom: 28px;
+    }
+
+    /* headline block */
+    .headline {
+      text-transform: uppercase;
+      line-height: 1.4;
+      margin-bottom: 20px;
+    }
+
+    .headline-line1 {
+      padding-top: 10px;
+      font-family: "MontserratRegular", sans-serif;
+      font-size: 25px;            /* ~16px */
+      color: #F3EBDF;
+      letter-spacing: 0.03em;
+    }
+
+    .headline-line2 {
+      font-family: "MontserratBold", sans-serif;
+      font-size: 25px;
+      color: #F3EBDF;
+      letter-spacing: 0.03em;
+      padding-bottom: 15px;
+    }
+
+    /* subtext "Click the button below" */
+    .subtext {
+      font-family: "MontserratThinItalic", sans-serif;
+      font-size: 0.90rem;         /* ~12px */
+      color: #F3EBDF;
+      margin-bottom: 12px;
+    }
+
+    /* button (styled link) */
+    .feedback-btn {
+      font-family: "MontserratBold", sans-serif;
+      font-size: 1rem;          /* ~13px */
+      background-color: #F3EBDF;
+      color: #9E3722;
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 20px;
+      min-width: 170px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 28px;
+      text-decoration: none;      /* remove underline */
+      display: inline-block;
+      text-align: center;
+    }
+
+    .feedback-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.5);
+    }
+
+    .feedback-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* icons row (replaces the 3 dots) */
+    .social-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 56px; /* space before oOps! */
+    }
+
+    .icon-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+    }
+
+    .icon-link img {
+      width: 28px;
+      height: 28px;
+      display: block;
+      /* If your SVGs are dark, this tints them to the light cream color */
+      transition: transform 0.2s ease;
+    }
+
+    .icon-link img:hover {
+      transform: scale(1.12);
+    }
+
+    /* bottom logo */
+    .bottom-logo {
+      width: 120px;
+      height: auto;
+    }
+
+    @media (min-width: 480px) {
+      .headline-line1,
+      .headline-line2 {
+        font-size: 1.05rem;
+      }
+
+      .subtext {
+        font-size: 0.8rem;
+      }
+
+      .feedback-btn {
+        font-size: 0.8rem;
+        min-width: 180px;
+      }
+
+      .bottom-logo {
+        width: 150px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <main class="content">
+
+    <!-- emblem -->
+    <img
+      src="images/icons/iconinqr.svg"
+      alt="oOps emblem"
+      class="top-logo"
+    />
+
+    <!-- headline text -->
+    <div class="headline">
+      <div class="headline-line1">WE CARE ABOUT</div>
+      <div class="headline-line2">YOUR FEEDBACK</div>
+    </div>
+
+    <!-- subtext -->
+    <div class="subtext">Click the button below</div>
+
+    <!-- button (link to feedback.php) -->
+    <a class="feedback-btn" href="feedback.php">FEEDBACK</a>
+
+    <!-- icons row (instead of 3 dots) -->
+    <div class="social-row">
+      <a
+        class="icon-link"
+        href="https://www.instagram.com/oops.restocafe?igsh=MTd0NzA3d2szZmQ4Mw=="
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Instagram"
+      >
+        <img src="images/icons/insta_icon.svg" alt="Instagram" />
+      </a>
+
+      <a
+        class="icon-link"
+        href="tel:+96170202448"
+        aria-label="Call oOps!"
+      >
+        <img src="images/icons/phone_icon.svg" alt="Phone" />
+      </a>
+    </div>
+
+    <!-- bottom logo -->
+    <img
+      src="images/logo/oopslogo_web.svg"
+      alt="oOps! logo"
+      class="bottom-logo"
+    />
+
+  </main>
+
+</body>
+</html>
